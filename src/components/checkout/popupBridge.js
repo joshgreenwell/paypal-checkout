@@ -1,17 +1,17 @@
 /* @flow */
 
-import { once, noop } from 'xcomponent/src/lib';
+import { getter, memoize, once, noop } from 'xcomponent/src/lib';
 import { ZalgoPromise } from 'zalgo-promise/src';
 import { error } from 'beaver-logger/client';
 
 import { extendUrl, redirect, awaitKey, stringifyError } from '../../lib';
-import { config, FUNDING } from '../../config';
+import { config } from '../../config';
 
-import { determineParameterFromToken, determineUrl } from './util';
+import { determineParameterFromToken, determineUrlFromToken } from './util';
 
 function ternary(condition, truthyResult, falsyResult) : ZalgoPromise<*> {
     return ZalgoPromise.resolve(condition).then(result => {
-        return result ? truthyResult() : falsyResult();
+        return result ? truthyResult : falsyResult;
     });
 }
 
@@ -77,16 +77,20 @@ function renderThroughPopupBridge(props : Object, openBridge : Function) : Zalgo
 
         let env = props.env = props.env || config.env;
 
+        let getPayment = (typeof props.payment === 'function')
+            ? props.payment.bind({ props })
+            : () => props.payment;
+
+        let payment = memoize(getter(getPayment));
         let onAuthorize = once(props.onAuthorize);
         let onCancel = once(props.onCancel || noop);
 
-        let awaitUrl = ternary(props.url, () => props.url, () => ZalgoPromise.try(props.payment, { props }).then(token => {
+        let awaitUrl = ternary(props.url, props.url, payment().then(token => {
             if (token) {
-                return extendUrl(determineUrl(env, FUNDING.PAYPAL, token), {
+                return extendUrl(determineUrlFromToken(env, token), {
                     [ determineParameterFromToken(token) ]: token,
-
-                    useraction: props.commit ? 'commit' : '',
-                    native_xo:  '1'
+                    useraction:                             props.commit ? 'commit' : '',
+                    native_xo:                              '1'
                 });
             }
         }));
@@ -110,15 +114,11 @@ function renderThroughPopupBridge(props : Object, openBridge : Function) : Zalgo
                         paymentToken: query.token,
                         billingToken: query.billingToken,
                         paymentID:    query.paymentId,
-                        payerID:      query.payerId,
-                        intent:       query.intent
+                        payerID:      query.payerID
                     };
 
                     let actions : Object = {
                         close() {
-                            // pass
-                        },
-                        closeComponent() {
                             // pass
                         }
                     };

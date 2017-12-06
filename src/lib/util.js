@@ -1,6 +1,5 @@
 /* @flow */
 
-import base32 from 'hi-base32';
 import { ZalgoPromise } from 'zalgo-promise/src';
 import { getDomain } from 'cross-domain-utils/src';
 
@@ -13,7 +12,7 @@ export function isPayPalDomain() : boolean {
 // eslint-disable-next-line flowtype/no-weak-types
 export function memoize<R>(method : (...args : Array<any>) => R, options : { time? : number } = {}) : ((...args : Array<any>) => R) {
 
-    let cache : { [key : string] : { time : number, value : R } } = {};
+    let cache : { [key : string] : R } = {};
 
     // eslint-disable-next-line no-unused-vars, flowtype/no-weak-types
     return function memoizedFunction(...args : Array<any>) : R {
@@ -21,31 +20,24 @@ export function memoize<R>(method : (...args : Array<any>) => R, options : { tim
         let key : string;
 
         try {
-            key = JSON.stringify(Array.prototype.slice.call(arguments));
+            key = JSON.stringify(arguments);
         } catch (err) {
             throw new Error(`Arguments not serializable -- can not be used to memoize`);
         }
 
-        let time = options.time;
-
-        if (cache[key] && time && (Date.now() - cache[key].time) < time) {
-            delete cache[key];
+        if (cache.hasOwnProperty(key)) {
+            return cache[key];
         }
 
-        if (window.__CACHE_START_TIME__ && cache[key] && cache[key].time < window.__CACHE_START_TIME__) {
-            delete cache[key];
+        cache[key] = method.apply(this, arguments);
+
+        if (options.time) {
+            setTimeout(() => {
+                delete cache[key];
+            }, options.time);
         }
 
-        if (cache[key]) {
-            return cache[key].value;
-        }
-
-        cache[key] = {
-            time:  Date.now(),
-            value: method.apply(this, arguments)
-        };
-
-        return cache[key].value;
+        return cache[key];
     };
 }
 
@@ -69,15 +61,9 @@ export function uniqueID() : string {
 
     let chars = '0123456789abcdef';
 
-    let randomID = 'xxxxxxxxxx'.replace(/./g, () => {
+    return 'xxxxxxxxxx'.replace(/./g, () => {
         return chars.charAt(Math.floor(Math.random() * chars.length));
     });
-
-    let timeID = base32.encode(
-        new Date().toISOString().slice(11, 19).replace('T', '.')
-    ).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-    
-    return `${ randomID }_${ timeID }`;
 }
 
 export function hashStr(str : string) : number {
@@ -307,41 +293,4 @@ export function extend<T : Object | Function>(obj : T, source : Object) : T {
     }
 
     return obj;
-}
-
-export function hasValue<T : mixed>(obj : { [string] : T }, value : T) : boolean {
-    for (let key in obj) {
-        if (obj.hasOwnProperty(key) && obj[key] === value) {
-            return true;
-        }
-    }
-    return false;
-}
-
-export function contains<T>(arr : Array<T>, value : T) : boolean {
-    return arr.indexOf(value) !== -1;
-}
-
-export function sortBy<T>(arr : Array<T>, order : Array<T>) : Array<T> {
-    return arr.sort((a : T, b : T) => {
-        return order.indexOf(a) - order.indexOf(b);
-    });
-}
-
-export function reverseMap(obj : { [string] : string }) : { [string] : string } {
-    let result = {};
-    for (let key in obj) {
-        if (obj.hasOwnProperty(key)) {
-            result[obj[key]] = key;
-        }
-    }
-    return result;
-}
-
-export function arrayRemove<T>(arr : Array<T>, item : T) {
-    arr.splice(arr.indexOf(item), 1);
-}
-
-export function identity<T : mixed>(item : T) : T {
-    return item;
 }

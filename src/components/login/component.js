@@ -5,7 +5,7 @@ import { ZalgoPromise } from 'zalgo-promise/src';
 
 import { config, ENV } from '../../config';
 import { containerTemplate, componentTemplate } from '../checkout/templates';
-import { getSessionID, getBrowserLocale, getScriptVersion } from '../../lib';
+import { getCommonSessionID, getBrowserLocale } from '../../lib';
 
 export let Login = create({
 
@@ -20,7 +20,7 @@ export let Login = create({
     // allowedParentDomains: config.paypal_domain_regex,
 
     get bridgeUrl() : Object {
-        return config.metaFrameUrls;
+        return config.postBridgeUrls;
     },
 
     get bridgeDomain() : Object {
@@ -40,7 +40,7 @@ export let Login = create({
     },
 
     get version() : string {
-        return getScriptVersion();
+        return config.ppobjects ? __FILE_VERSION__ : __MINOR_VERSION__;
     },
 
     sandboxContainer: true,
@@ -50,11 +50,11 @@ export let Login = create({
 
     props: {
 
-        sessionID: {
+        uid: {
             type:  'string',
-            value: getSessionID(),
+            value: getCommonSessionID(),
             def() : string {
-                return getSessionID();
+                return getCommonSessionID();
             },
             queryParam: true
         },
@@ -72,14 +72,6 @@ export let Login = create({
                 if (!config.paypalUrls[env]) {
                     throw new Error(`Invalid env: ${ env }`);
                 }
-            }
-        },
-
-        style: {
-            type:     'object',
-            required: false,
-            def() : Object {
-                return {};
             }
         },
 

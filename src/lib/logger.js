@@ -1,16 +1,14 @@
 /* @flow */
 
 import { CONFIG as POSTROBOT_CONFIG } from 'post-robot/src';
-import { setTransport, getTransport, addPayloadBuilder, addMetaBuilder,
-    addTrackingBuilder, init, logLevels, config as loggerConfig } from 'beaver-logger/client';
+import { setTransport, getTransport, addPayloadBuilder, addMetaBuilder, addTrackingBuilder, init, logLevels, config as loggerConfig } from 'beaver-logger/client';
 import { getParent } from 'cross-domain-utils/src';
 
 import { config, FPTI } from '../config';
 
-import { getSessionID, getButtonSessionID } from './session';
+import { getCommonSessionID } from './session';
 import { proxyMethod } from './proxy';
 import { getDomainSetting, once } from './util';
-import { getQueryParam } from './dom';
 
 function getRefererDomain() : string {
     return (window.xchild && window.xchild.getParentDomain)
@@ -21,18 +19,6 @@ function getRefererDomain() : string {
 let setupProxyLogTransport = once(() => {
     setTransport(proxyMethod('log', getParent(window), getTransport()));
 });
-
-function getToken() : ?string {
-    if (window.root && window.root.token) {
-        return window.root.token;
-    }
-
-    let queryToken = getQueryParam('token');
-
-    if (queryToken) {
-        return queryToken;
-    }
-}
 
 export function initLogger() {
 
@@ -46,7 +32,7 @@ export function initLogger() {
             env:     config.env,
             country: config.locale.country,
             lang:    config.locale.lang,
-            uid:     getSessionID(),
+            uid:     getCommonSessionID(),
             ver:     __MINOR_VERSION__
         };
     });
@@ -57,24 +43,14 @@ export function initLogger() {
         };
     });
 
-    addTrackingBuilder((payload = {}) => {
-
-        let sessionID       = getSessionID();
-        let buttonSessionID = payload[FPTI.KEY.BUTTON_SESSION_UID] || getButtonSessionID();
-        let contextType     = buttonSessionID ? FPTI.CONTEXT_TYPE.BUTTON_SESSION_ID : payload[FPTI.KEY.CONTEXT_TYPE];
-        let contextID       = buttonSessionID ? buttonSessionID : payload[FPTI.KEY.CONTEXT_ID];
-
+    addTrackingBuilder(() => {
         return {
-            [ FPTI.KEY.FEED ]:               FPTI.FEED.CHECKOUTJS,
-            [ FPTI.KEY.DATA_SOURCE ]:        FPTI.DATA_SOURCE.CHECKOUT,
-            [ FPTI.KEY.CONTEXT_TYPE ]:       contextType,
-            [ FPTI.KEY.CONTEXT_ID ]:         contextID,
-            [ FPTI.KEY.SELLER_ID ]:          config.merchantID,
-            [ FPTI.KEY.SESSION_UID ]:        sessionID,
-            [ FPTI.KEY.BUTTON_SESSION_UID ]: buttonSessionID,
-            [ FPTI.KEY.VERSION ]:            config.version,
-            [ FPTI.KEY.TOKEN ]:              getToken(),
-            [ FPTI.KEY.REFERER ]:            getRefererDomain()
+            [ FPTI.KEY.FEED ]:         FPTI.FEED.CHECKOUTJS,
+            [ FPTI.KEY.DATA_SOURCE ]:  FPTI.DATA_SOURCE.CHECKOUT,
+            [ FPTI.KEY.CONTEXT_TYPE ]: FPTI.CONTEXT_TYPE.UID,
+            [ FPTI.KEY.SESSION_UID ]:  getCommonSessionID(),
+            [ FPTI.KEY.CONTEXT_ID ]:   getCommonSessionID(),
+            [ FPTI.KEY.REFERER ]:      getRefererDomain()
         };
     });
 

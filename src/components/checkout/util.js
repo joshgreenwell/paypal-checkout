@@ -1,36 +1,32 @@
 /* @flow */
 
+import { info } from 'beaver-logger/client';
+
 import { match } from '../../lib';
-import { config, FUNDING, PAYMENT_TYPE } from '../../config';
+import { config } from '../../config';
 
 export function determineParameterFromToken(token : string) : string {
-    return (token && token.indexOf('BA-') === 0) ? 'ba_token' : 'token';
+    return token.indexOf('BA-') === 0 ? 'ba_token' : 'token';
 }
 
-export function getPaymentType(payment : string) : string {
-    if (payment.indexOf('BA-') === 0) {
-        return PAYMENT_TYPE.BA_TOKEN;
-    } else if (payment.indexOf('PAY-') === 0 || payment.indexOf('PAYID-') === 0) {
-        return PAYMENT_TYPE.PAY_ID;
-    } else if (payment.indexOf('EC-') === 0) {
-        return PAYMENT_TYPE.EC_TOKEN;
-    }
+export function determineUrlFromToken(env : string, token : string) : string {
 
-    return PAYMENT_TYPE.EC_TOKEN;
-}
-
-export function determineUrl(env : string, fundingSource : ?string, payment : string) : string {
-
-    let paymentType = getPaymentType(payment);
-
-    if (paymentType === PAYMENT_TYPE.BA_TOKEN) {
+    if (token.indexOf('BA-') === 0) {
+        info(`url_billing`);
         return config.billingUrls[env];
     }
 
-    if (fundingSource === FUNDING.CARD || fundingSource === FUNDING.ELV) {
-        return config.guestUrls[env];
+    if (token.indexOf('PAY-') === 0) {
+        info(`url_payment`);
+        return config.checkoutUrls[env];
     }
-    
+
+    if (token.indexOf('EC-') === 0) {
+        info(`url_checkout`);
+        return config.checkoutUrls[env];
+    }
+
+    info(`url_default`);
     return config.checkoutUrls[env];
 }
 

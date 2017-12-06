@@ -5,14 +5,11 @@ import { config } from '../../config';
 import { Login } from './component';
 
 let prerender = Login.prerender;
-
-// $FlowFixMe
 Login.prerender = function loginPrerender(props) : Object {
     let component = prerender.apply(this, arguments);
 
     let env = (props && props.env) || config.env;
 
-    // $FlowFixMe
     component.html = component.html.then(html => {
         return `
             ${ html }

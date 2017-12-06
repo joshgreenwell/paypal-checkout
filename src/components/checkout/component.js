@@ -3,21 +3,17 @@
 
 import { ZalgoPromise } from 'zalgo-promise/src';
 import { info, track, warn, flush as flushLogs, immediateFlush } from 'beaver-logger/client';
-import { create, CONSTANTS, PopupOpenError } from 'xcomponent/src';
-import { type Component } from 'xcomponent/src/component/component';
+import { create, CONSTANTS } from 'xcomponent/src';
 import { getParent, isSameDomain } from 'cross-domain-utils/src';
 
 import { isDevice, request, getQueryParam, redirect as redir, patchMethod,
-    setLogLevel, getSessionID, getBrowserLocale, supportsPopups, memoize,
-    extend, getDomainSetting, documentReady, getThrottle, getScriptVersion,
-    getButtonSessionID, isPayPalDomain } from '../../lib';
-import { config, ENV, FPTI, PAYMENT_TYPE } from '../../config';
+    setLogLevel, getCommonSessionID, getBrowserLocale, supportsPopups } from '../../lib';
+import { config, ENV, FPTI } from '../../config';
 import { onLegacyPaymentAuthorize } from '../../compat';
 
 import { containerTemplate, componentTemplate } from './templates';
-import { determineParameterFromToken, determineUrl } from './util';
+import { determineParameterFromToken, determineUrlFromToken } from './util';
 import { setupPopupBridgeProxy, getPopupBridgeOpener, awaitPopupBridgeOpener } from './popupBridge';
-import { CHECKOUT_OVERLAY_COLOR } from './constants';
 
 
 function addHeader(name, value) : void {
@@ -63,34 +59,22 @@ function forceIframe() : boolean {
     return false;
 }
 
-type CheckoutPropsType = {
-    payment? : () => ZalgoPromise<string>,
-    onAuthorize : ({ returnUrl : string }, { redirect : (?CrossDomainWindowType, ?string) => ZalgoPromise<void> }) => ?ZalgoPromise<void>,
-    onCancel? : ({ cancelUrl : string }, { redirect : (?CrossDomainWindowType, ?string) => ZalgoPromise<void> }) => ?ZalgoPromise<void>,
-    fallback? : (string) => ?ZalgoPromise<void>,
-    fundingSource? : string
-};
-
-export let Checkout : Component<CheckoutPropsType> = create({
+export let Checkout = create({
 
     tag:  'paypal-checkout',
     name: 'ppcheckout',
 
     scrolling: true,
 
-    buildUrl(props) : ZalgoPromise<string> {
+    buildUrl(props) : string | ZalgoPromise<string> {
         let env = props.env || config.env;
-
-        if (!props.payment) {
-            throw new Error(`Can not build url without payment prop`);
-        }
 
         return props.payment().then(token => {
             if (!token) {
                 throw new Error(`Expected payment id or token to be passed, got ${ token }`);
             }
 
-            return determineUrl(env, props.fundingSource, token);
+            return determineUrlFromToken(env, token);
         });
     },
 
@@ -99,7 +83,7 @@ export let Checkout : Component<CheckoutPropsType> = create({
     },
 
     get bridgeUrl() : Object {
-        return config.metaFrameUrls;
+        return config.postBridgeUrls;
     },
 
     get bridgeDomain() : Object {
@@ -112,7 +96,7 @@ export let Checkout : Component<CheckoutPropsType> = create({
     },
 
     get version() : string {
-        return getScriptVersion();
+        return config.ppobjects ? __FILE_VERSION__ : __MINOR_VERSION__;
     },
 
     prerenderTemplate: componentTemplate,
@@ -120,20 +104,11 @@ export let Checkout : Component<CheckoutPropsType> = create({
 
     props: {
 
-        sessionID: {
-            type:     'string',
-            required: false,
+        uid: {
+            type:  'string',
+            value: getCommonSessionID(),
             def() : string {
-                return getSessionID();
-            },
-            queryParam: true
-        },
-
-        buttonSessionID: {
-            type:     'string',
-            required: false,
-            def() : ?string {
-                return getButtonSessionID();
+                return getCommonSessionID();
             },
             queryParam: true
         },
@@ -184,7 +159,7 @@ export let Checkout : Component<CheckoutPropsType> = create({
         client: {
             type:     'object',
             required: false,
-            def() : { [string] : string } {
+            def() : Object {
                 return {};
             },
             sendToChild: false,
@@ -203,45 +178,23 @@ export let Checkout : Component<CheckoutPropsType> = create({
         },
 
         payment: {
-            type:      'function',
-            required:  false,
-            memoize:   true,
-            promisify: true,
-            queryParam(payment) : ZalgoPromise<string> {
-                return payment().then(token => {
-                    return determineParameterFromToken(token);
-                });
+            type:     'string',
+            required: false,
+            getter:   true,
+            memoize:  true,
+            timeout:  __TEST__ ? 500 : 10 * 1000,
+            queryParam(value = '') : string {
+                return determineParameterFromToken(value);
             },
-            queryValue(payment) : ZalgoPromise<string> {
-                return payment();
+            childDef() : ?string {
+                return getQueryParam('token');
             },
-            childDecorate(payment) : () => ZalgoPromise<string> {
-                let token = getQueryParam('token');
-
-                return token
-                    ? memoize(() => ZalgoPromise.resolve(token))
-                    : payment;
-            },
-            validate(payment, props) {
-                if (!payment && !props.url) {
-                    throw new Error(`Expected either props.payment or props.url to be passed`);
+            validate(value, props) {
+                if (!value && !props.url) {
+                    throw new Error(`Expected props.payment to be passed`);
                 }
             },
             alias: 'billingAgreement'
-        },
-
-        style: {
-            type:          'object',
-            required:      false,
-            allowDelegate: true,
-            def() : Object {
-                return {};
-            },
-            validate(style) {
-                if (style.overlayColor && style.overlayColor !== CHECKOUT_OVERLAY_COLOR.BLACK && style.overlayColor !== CHECKOUT_OVERLAY_COLOR.WHITE) {
-                    throw new Error(`Invalid background color: ${ style.overlayColor }`);
-                }
-            }
         },
 
         commit: {
@@ -255,12 +208,6 @@ export let Checkout : Component<CheckoutPropsType> = create({
             def() : Object {
                 return {};
             }
-        },
-
-        fundingSource: {
-            type:       'string',
-            required:   false,
-            queryParam: true
         },
 
         onAuthorize: {
@@ -371,7 +318,9 @@ export let Checkout : Component<CheckoutPropsType> = create({
                     };
 
                     return ZalgoPromise.try(() => {
-                        return original.call(this, data, { ...actions, close, redirect });
+                        if (original) {
+                            return original.call(this, data, { ...actions, close, redirect });
+                        }
                     }).finally(() => {
                         this.close();
                     });
@@ -383,16 +332,16 @@ export let Checkout : Component<CheckoutPropsType> = create({
             type:     'function',
             required: false,
             once:     true,
-            noop:     true,
 
             decorate(original) : Function {
                 return function decorateInit(data) : void {
+
                     info('checkout_init');
 
                     track({
                         [ FPTI.KEY.STATE ]:        FPTI.STATE.CHECKOUT,
                         [ FPTI.KEY.TRANSITION ]:   FPTI.TRANSITION.CHECKOUT_INIT,
-                        [ FPTI.KEY.CONTEXT_TYPE ]: FPTI.CONTEXT_TYPE[PAYMENT_TYPE.EC_TOKEN],
+                        [ FPTI.KEY.CONTEXT_TYPE ]: FPTI.CONTEXT_TYPE.EC_TOKEN,
                         [ FPTI.KEY.TOKEN ]:        data.paymentToken,
                         [ FPTI.KEY.SELLER_ID ]:    data.merchantID,
                         [ FPTI.KEY.CONTEXT_ID ]:   data.paymentToken
@@ -403,7 +352,9 @@ export let Checkout : Component<CheckoutPropsType> = create({
                     this.paymentToken = data.paymentToken;
                     this.cancelUrl    = data.cancelUrl;
 
-                    return original.apply(this, arguments);
+                    if (original) {
+                        return original.apply(this, arguments);
+                    }
                 };
             }
         },
@@ -413,12 +364,13 @@ export let Checkout : Component<CheckoutPropsType> = create({
             required:  false,
             once:      true,
             promisify: true,
-            noop:      true,
 
             decorate(original) : Function {
                 return function decorateOnClose(reason) : ZalgoPromise<void> {
 
-                    let onClose = original.apply(this, arguments);
+                    let onClose = original
+                        ? original.apply(this, arguments)
+                        : ZalgoPromise.resolve();
 
                     let CLOSE_REASONS = CONSTANTS.CLOSE_REASONS;
 
@@ -467,14 +419,8 @@ export let Checkout : Component<CheckoutPropsType> = create({
             once:     true,
 
             def() : Function {
-                return function defaultFallback(url) : ZalgoPromise<void> {
+                return function decorateFallback(url) : ZalgoPromise<void> {
                     warn('fallback', { url });
-
-                    if (getDomainSetting('allow_full_page_fallback')) {
-                        window.top.location = url;
-                        return this.close();
-                    }
-
                     return onLegacyPaymentAuthorize(this.props.onAuthorize);
                 };
             }
@@ -513,7 +459,7 @@ export let Checkout : Component<CheckoutPropsType> = create({
         height: false
     },
 
-    get dimensions() : { width : string, height : string } {
+    get dimensions() : { width : string | number, height : string | number } {
 
         if (isDevice()) {
             return {
@@ -544,116 +490,19 @@ if (Checkout.isChild()) {
 
     awaitPopupBridgeOpener();
 
-    window.xchild.onProps(() => {
-        patchMethod(window.xprops, 'onAuthorize', ({ callOriginal, args: [ data ] }) => {
-            if (data && !data.intent) {
-                warn(`hermes_authorize_no_intent`, { paymentID: data.paymentID, token: data.paymentToken });
+    patchMethod(window.xprops, 'onAuthorize', ({ callOriginal, args : [ data ] }) => {
+        if (data && !data.intent) {
+            warn(`hermes_authorize_no_intent`, { paymentID: data.paymentID, token: data.paymentToken });
 
-                try {
-                    let intent = window.injector.get('$CheckoutCartModel').instance(data.paymentToken).payment_action;
-                    warn(`hermes_intent`, { paymentID: data.paymentID, token: data.paymentToken, intent });
-                } catch (err) {
-                    // pass
-                }
-
-                immediateFlush();
+            try {
+                let intent = window.injector.get('$CheckoutCartModel').instance(data.paymentToken).payment_action;
+                warn(`hermes_intent`, { paymentID: data.paymentID, token: data.paymentToken, intent });
+            } catch (err) {
+                // pass
             }
-            return callOriginal();
-        });
-    });
 
-    if (!Object.assign) {
-        try {
-            // $FlowFixMe
-            Object.assign = extend;
-        } catch (err) {
-            // pass
+            immediateFlush();
         }
-    }
-
-    // eslint-disable-next-line promise/catch-or-return
-    documentReady.then(() => {
-
-        if (!window.injector) {
-            return;
-        }
-
-        let $event = window.injector.get('$event');
-
-        if (!$event) {
-            return;
-        }
-
-        let experimentActive = false;
-        let loggedComplete = false;
-
-        $event.on('allLoaded', () => {
-            setTimeout(() => {
-                let payButton = document.querySelector('.buttons.reviewButton');
-                let topPayButton = document.querySelector('.buttons.reviewButton.topReviewButton');
-                let reviewSection = document.querySelector('section.review');
-
-                let throttle = getThrottle('top_pay_button', 5000);
-
-                let hash = window.location.hash;
-                
-                let logComplete = () => {
-                    if (experimentActive && !loggedComplete && hash && hash.indexOf('checkout/review') !== -1) {
-                        throttle.logComplete();
-                        loggedComplete = true;
-                    }
-                };
-
-                if (payButton) {
-                    payButton.addEventListener('click', logComplete);
-                }
-
-                if (!reviewSection || !reviewSection.firstChild || !payButton || topPayButton) {
-                    return;
-                }
-
-                if (payButton.getBoundingClientRect().bottom < window.innerHeight) {
-                    return;
-                }
-
-                experimentActive = true;
-                throttle.logStart();
-
-                if (!throttle.isEnabled()) {
-                    return;
-                }
-
-                topPayButton = payButton.cloneNode(true);
-                topPayButton.className += ' topReviewButton';
-                reviewSection.insertBefore(topPayButton, reviewSection.firstChild);
-
-                topPayButton.addEventListener('click', () => {
-                    logComplete();
-                    let button = payButton && payButton.querySelector('button, input');
-                    if (button) {
-                        button.click();
-                    }
-                });
-            }, 200);
-        });
+        return callOriginal();
     });
 }
-
-patchMethod(Checkout, 'init', ({ args: [ props, _context ], original, context }) => {
-    return original.call(context, props, _context, 'body');
-});
-
-patchMethod(Checkout, 'render', ({ args: [ props ], original, context }) => {
-    return original.call(context, props, 'body');
-});
-
-patchMethod(Checkout, 'renderTo', ({ args: [ win, props ], original, context }) => {
-    return original.call(context, win, props, 'body').catch(err => {
-        if (err instanceof PopupOpenError && isPayPalDomain()) {
-            Checkout.contexts.iframe = true;
-            return original.call(context, win, props, 'body');
-        }
-        throw err;
-    });
-});
-

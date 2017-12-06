@@ -3,7 +3,7 @@
 import { info } from 'beaver-logger/client';
 import { ZalgoPromise } from 'zalgo-promise/src';
 
-import { config, LANG_TO_DEFAULT_COUNTRY } from '../config';
+import { config } from '../config';
 
 import { memoize } from './util';
 import { isDevice } from './device';
@@ -12,7 +12,7 @@ function isDocumentReady() : boolean {
     return Boolean(document.body) && document.readyState === 'complete';
 }
 
-export let documentReady : ZalgoPromise<void> = new ZalgoPromise(resolve => {
+let documentReady : ZalgoPromise<void> = new ZalgoPromise(resolve => {
 
     if (isDocumentReady()) {
         return resolve();
@@ -157,7 +157,7 @@ export let parseQuery = memoize((queryString : string) : Object => {
     }
 
     if (queryString.indexOf('=') === -1) {
-        return params;
+        throw new Error(`Can not parse query string params: ${ queryString }`);
     }
 
     for (let pair of queryString.split('&')) {
@@ -256,7 +256,7 @@ export function hasMetaViewPort() : boolean {
     return true;
 }
 
-export function normalizeLocale(locale : string) : ?LocaleType {
+export function normalizeLocale(locale : string) : ?{ country : string, lang : string } {
 
     if (locale && locale.match(/^[a-z]{2}[-_][A-Z]{2}$/)) {
         let [ lang, country ] = locale.split(/[-_]/);
@@ -264,42 +264,34 @@ export function normalizeLocale(locale : string) : ?LocaleType {
             return { country, lang };
         }
     }
-}
 
-export function normalizeLang(lang : string) : ?LocaleType {
-
-    if (lang && lang.match(/^[a-z]{2}$/)) {
-        if (LANG_TO_DEFAULT_COUNTRY[lang]) {
-            return { country: LANG_TO_DEFAULT_COUNTRY[lang], lang };
+    if (locale && locale.match(/^[a-z]{2}$/)) {
+        if (config.locales[config.defaultLocale.country].indexOf(locale) !== -1) {
+            return { country: config.defaultLocale.country, lang: locale };
         }
     }
 }
 
-export function getBrowserLocale() : LocaleType {
+export function getBrowserLocale() : { country : string, lang : string } {
 
-    let nav = window.navigator;
-
-    let locales = nav.languages
-        ? Array.prototype.slice.apply(nav.languages)
-        : [];
-
-    if (nav.language) {
-        locales.push(nav.language);
+    if (window.navigator.languages) {
+        for (let locale of Array.prototype.slice.apply(window.navigator.languages)) {
+            let loc = normalizeLocale(locale);
+            if (loc) {
+                return loc;
+            }
+        }
     }
 
-    if (nav.userLanguage) {
-        locales.push(nav.userLanguage);
-    }
-
-    for (let locale of locales) {
-        let loc = normalizeLocale(locale);
+    if (window.navigator.language) {
+        let loc = normalizeLocale(window.navigator.language);
         if (loc) {
             return loc;
         }
     }
 
-    for (let locale of locales) {
-        let loc = normalizeLang(locale);
+    if (window.navigator.userLanguage) {
+        let loc = normalizeLocale(window.navigator.userLanguage);
         if (loc) {
             return loc;
         }

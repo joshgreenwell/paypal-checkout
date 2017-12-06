@@ -5,7 +5,7 @@ import { ZalgoPromise } from 'zalgo-promise/src';
 
 import { config, FPTI } from '../config';
 import { loadScript, memoize, isElementVisible, stringifyError } from '../lib';
-import { BUTTON_COLOR, BUTTON_SHAPE, BUTTON_SIZE, BUTTON_LABEL } from '../components/button/constants';
+import { BUTTON_COLOR, BUTTON_SHAPE, BUTTON_SIZE, BUTTON_LABEL } from '../components/CheckoutButton/constants';
 
 import { LOG_PREFIX } from './constants';
 import { normalizeLocale } from './common';
@@ -65,7 +65,7 @@ function renderButton(id, { container, locale, type, color, shape, size }) : Zal
 
 export function renderButtons(id : string, buttons : Array<Object>) : ZalgoPromise<Array<Object>> {
 
-    return ZalgoPromise.map(buttons, button => {
+    return ZalgoPromise.all(buttons.map(button => {
         return ZalgoPromise.try(() => {
 
             if (button.container) {
@@ -91,7 +91,7 @@ export function renderButtons(id : string, buttons : Array<Object>) : ZalgoPromi
 
             return { container, element, type, condition, click };
         });
-    });
+    }));
 }
 
 export function getHijackTargetElement(button : HTMLElement | HTMLButtonElement) : ?Element {

@@ -15,13 +15,9 @@ export function isDevice() : boolean {
 
 export function isWebView() : boolean {
     let userAgent = getUserAgent();
-    return (/(iPhone|iPod|iPad|Macintosh).*AppleWebKit(?!.*Safari)/i).test(userAgent) ||
+    return (/(iPhone|iPod|iPad).*AppleWebKit(?!.*Safari)/i).test(userAgent) ||
         (/\bwv\b/).test(userAgent) ||
     (/Android.*Version\/(\d)\.(\d)/i).test(userAgent);
-}
-
-export function isFacebookWebView(ua? : string = getUserAgent()) : boolean {
-    return (ua.indexOf('FBAN') !== -1) || (ua.indexOf('FBAV') !== -1);
 }
 
 export function isFirefoxIOS(ua? : string = getUserAgent()) : boolean {
@@ -42,10 +38,6 @@ export function isIos(ua? : string = getUserAgent()) : boolean {
 
 export function isGoogleSearchApp(ua? : string = getUserAgent()) : boolean {
     return (/\bGSA\b/).test(ua);
-}
-
-export function isQQBrowser(ua? : string = getUserAgent()) : boolean {
-    return (/QQBrowser/).test(ua);
 }
 
 export function isIosWebview(ua? : string = getUserAgent()) : boolean {
@@ -115,5 +107,5 @@ export function isIEIntranet() : boolean {
 }
 
 export function supportsPopups(ua? : string = getUserAgent()) : boolean {
-    return !(isIosWebview(ua) || isAndroidWebview(ua) || isOperaMini(ua) || isFirefoxIOS(ua) || isFacebookWebView(ua) || isQQBrowser(ua));
+    return !(isIosWebview(ua) || isAndroidWebview(ua) || isOperaMini(ua) || isFirefoxIOS(ua));
 }

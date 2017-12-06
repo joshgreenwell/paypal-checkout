@@ -1,13 +1,13 @@
 /* @flow */
 
 import { info, track, debug, warn, error, flush as flushLogs } from 'beaver-logger/client';
+import { bridge } from 'post-robot/src';
 import { ZalgoPromise } from 'zalgo-promise/src';
 
 import { config, FPTI } from './config';
 import { initLogger, checkForCommonErrors, setLogLevel, stringifyError,
     stringifyErrorMessage, getResourceLoadTime, isPayPalDomain, isEligible,
-    getDomainSetting, once, openMetaFrame, precacheRememberedFunding,
-    getCurrentScript } from './lib';
+    getDomainSetting, once } from './lib';
 import { createPptmScript } from './lib/pptm';
 
 function domainToEnv(domain : string) : ?string {
@@ -57,6 +57,26 @@ ZalgoPromise.onPossiblyUnhandledException(err => {
     });
 });
 
+
+function getCurrentScript() : ? HTMLScriptElement {
+
+    let scripts = Array.prototype.slice.call(document.getElementsByTagName('script'));
+
+    for (let script of scripts) {
+        if (script.src && (script.src.replace(/^https?:/, '').split('?')[0] === config.scriptUrl || script.hasAttribute('data-paypal-checkout'))) {
+            return script;
+        }
+
+        if (script.src && (script.src.indexOf('paypal.checkout.v4.js') !== -1)) {
+            return script;
+        }
+    }
+
+    if (document.currentScript) { // eslint-disable-line compat/compat
+        debug(`current_script_not_recognized`, { src: document.currentScript.src }); // eslint-disable-line compat/compat
+    }
+}
+
 let currentScript = getCurrentScript();
 let currentProtocol = window.location.protocol.split(':')[0];
 
@@ -66,11 +86,11 @@ type ConfigOptions = {
     stage? : ?string,
     apiStage? : ?string,
     state? : ?string,
-    logLevel? : ?string,
-    merchantID? : ?string
+    ppobjects? : ?boolean,
+    logLevel? : ?string
 };
 
-function configure({ env, stage, apiStage, state, logLevel, merchantID } : ConfigOptions = {}) {
+function configure({ env, stage, apiStage, state, ppobjects, logLevel } : ConfigOptions = {}) {
 
     if (env) {
         if (!config.paypalUrls[env]) {
@@ -96,8 +116,8 @@ function configure({ env, stage, apiStage, state, logLevel, merchantID } : Confi
         config.state = state;
     }
 
-    if (merchantID) {
-        config.merchantID = merchantID;
+    if (ppobjects) {
+        config.ppobjects = true;
     }
 
     if (logLevel) {
@@ -107,7 +127,7 @@ function configure({ env, stage, apiStage, state, logLevel, merchantID } : Confi
     }
 }
 
-export let init = once(({ precacheRemembered }) => {
+export let init = once(() => {
 
     if (!isEligible()) {
         warn('ineligible');
@@ -115,18 +135,14 @@ export let init = once(({ precacheRemembered }) => {
 
     checkForCommonErrors();
 
-    initLogger();
-
     if (!isPayPalDomain()) {
         createPptmScript();
     }
 
-    if (precacheRemembered) {
-        precacheRememberedFunding();
-    }
+    initLogger();
 
-    if (getDomainSetting('force_bridge') && !isPayPalDomain()) {
-        openMetaFrame(config.env);
+    if (getDomainSetting('force_bridge') && bridge && !isPayPalDomain()) {
+        bridge.openBridge(config.postBridgeUrls[config.env], config.paypalDomains[config.env]);
     }
 
     info(`setup_${ config.env }`);
@@ -136,18 +152,17 @@ export let init = once(({ precacheRemembered }) => {
 
 export function setup(options : ConfigOptions = {}) {
     configure(options);
-    init(options);
+    init();
 }
 
 if (currentScript) {
     setup({
-        env:                currentScript.getAttribute('data-env'),
-        stage:              currentScript.getAttribute('data-stage'),
-        apiStage:           currentScript.getAttribute('data-api-stage'),
-        state:              currentScript.getAttribute('data-state'),
-        logLevel:           currentScript.getAttribute('data-log-level'),
-        merchantID:         currentScript.getAttribute('data-merchant-id'),
-        precacheRemembered: currentScript.hasAttribute('data-precache-remembered-funding')
+        env:        currentScript.getAttribute('data-env'),
+        stage:      currentScript.getAttribute('data-stage'),
+        apiStage:   currentScript.getAttribute('data-api-stage'),
+        state:      currentScript.getAttribute('data-state'),
+        logLevel:   currentScript.getAttribute('data-log-level'),
+        ppobjects:  true
     });
 
 } else {

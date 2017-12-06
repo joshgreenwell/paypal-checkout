@@ -2,7 +2,7 @@
 
 import { info, track, immediateFlush } from 'beaver-logger/client';
 
-import { FPTI, PAYMENT_TYPE } from './config';
+import { FPTI } from './config';
 import { getReturnToken, getSessionState, getDomainSetting, eventEmitter } from './lib';
 
 export let onAuthorizeListener = eventEmitter();
@@ -22,12 +22,6 @@ function log(experiment : string, treatment : string, token : ?string, state : s
             info(event);
             loggedEvents.push(event);
 
-            let edge = window.navigator && window.navigator.userAgent && window.navigator.userAgent.match(/Edge\/[0-9]{2}/);
-
-            if (edge) {
-                event = info(`${ edge[0].toLowerCase().replace('/', '_') }_${ event }`);
-            }
-
             track({
                 [ FPTI.KEY.STATE ]:           FPTI.STATE.CHECKOUT,
                 [ FPTI.KEY.TRANSITION ]:      state,
@@ -35,7 +29,7 @@ function log(experiment : string, treatment : string, token : ?string, state : s
                 [ FPTI.KEY.TREATMENT_NAME ]:  treatment,
                 [ FPTI.KEY.TOKEN ]:           token,
                 [ FPTI.KEY.CONTEXT_ID ]:      token,
-                [ FPTI.KEY.CONTEXT_TYPE ]:    token ? FPTI.CONTEXT_TYPE[PAYMENT_TYPE.EC_TOKEN] : FPTI.CONTEXT_TYPE.BUTTON_SESSION_ID
+                [ FPTI.KEY.CONTEXT_TYPE ]:    token ? FPTI.CONTEXT_TYPE.EC_TOKEN : FPTI.CONTEXT_TYPE.UID
             });
 
             immediateFlush();
@@ -43,14 +37,24 @@ function log(experiment : string, treatment : string, token : ?string, state : s
     });
 }
 
-export function logExperimentTreatment({ experiment, treatment, state, token } : { experiment : string, treatment : string, state : string, token : ?string }) {
+export function logExperimentTreatment(experiment : string, treatment : string, token : ?string) {
 
-    if (!experiment || !treatment) {
-        return;
+    let exp;
+    let state;
+
+    if (experiment === 'walmart_paypal_incontext' || experiment === 'walmart_paypal_incontext_redirect') {
+        exp   = 'walmart_paypal_incontext';
+        state = 'redirect';
+    } else if (experiment === 'walmart_paypal_incontext_click') {
+        exp   = 'walmart_paypal_incontext';
+        state = 'click';
+    } else {
+        exp = experiment;
+        state = 'start';
     }
 
     getSessionState(session => {
-        session.externalExperiment          = experiment;
+        session.externalExperiment          = exp;
         session.externalExperimentTreatment = treatment;
 
         if (token) {
@@ -58,7 +62,7 @@ export function logExperimentTreatment({ experiment, treatment, state, token } :
         }
     });
 
-    log(experiment, treatment, token, state);
+    log(exp, treatment, token, state);
 }
 
 function logReturn(token : string) {
