@@ -94,8 +94,15 @@ gulp build
     <div id='paypal-button'></div>
 
     <script>
-        paypal.init({client: { production: "XXXXXXXXXXX", sandbox: "XXXXXXXXXXX" }, env: "production"});
-        console.log(paypal.initData);
+        paypal.init({
+					env: 'production',
+					
+					client: {
+						production: 'XXXXXXXXXXX',
+						sandbox: 'XXXXXXXXXXX' 
+					}
+				});
+
         paypal.SaveToPPButton.render({}, '#checkbox-button');
 
         paypal.CheckoutButton.render({
