@@ -95,13 +95,13 @@ gulp build
 
     <script>
         paypal.init({
-					env: 'production',
-					
-					client: {
-						production: 'XXXXXXXXXXX',
-						sandbox: 'XXXXXXXXXXX' 
-					}
-				});
+          env: 'production',
+
+          client: {
+            production: 'XXXXXXXXXXX',
+            sandbox: 'XXXXXXXXXXX' 
+          }
+        });
 
         paypal.SaveToPPButton.render({}, '#checkbox-button');
 
