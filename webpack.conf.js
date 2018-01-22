@@ -11,7 +11,7 @@ babelConfig.babelrc = false;
 babelConfig.cacheDirectory = true;
 babelConfig.presets[0][1].modules = false;
 
-const FILE_NAME = 'checkout';
+const FILE_NAME = 'paypal';
 
 function getNextVersion() {
     let version = require('./package.json').version;

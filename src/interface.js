@@ -12,10 +12,10 @@ export { ZalgoPromise as Promise } from 'zalgo-promise/src';
 export { PopupOpenError } from 'xcomponent/src';
 
 export { rest } from './api';
-export { Button, allowIframe as forceIframe, allowIframe as isWebView, allowIframe } from './components';
+export { Button, SaveToPPButton, allowIframe as forceIframe, allowIframe as isWebView, allowIframe } from './components';
 export { setup } from './setup';
 export { config, ENV, USERS, SOURCE, FUNDING, CARD } from './config';
-export { request, isEligible, isFundingRemembered } from './lib';
+export { init, request, isEligible, isFundingRemembered } from './lib';
 export { logExperimentTreatment } from './experiments';
 
 export let onPossiblyUnhandledException = ZalgoPromise.onPossiblyUnhandledException;
