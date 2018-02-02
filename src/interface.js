@@ -12,7 +12,7 @@ export { ZalgoPromise as Promise } from 'zalgo-promise/src';
 export { PopupOpenError } from 'xcomponent/src';
 
 export { rest } from './api';
-export { Button } from './button';
+export { Button, init } from './exporter';
 export { allowIframe as forceIframe, allowIframe as isWebView, allowIframe } from './checkout';
 export { setup } from './setup';
 export { config } from './config';
